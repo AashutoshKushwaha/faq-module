@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        h1 {
+            color: #4a90e2;
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4a90e2;
+            color: white;
+            cursor: pointer;
+            margin-top: 10px;
+            display: inline-block;
+        }
+
+        button:hover {
+            background-color: #357ab8;
+        }
+
+        .result {
+            background-color: white;
+            padding: 15px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .result h3 {
+            margin: 0;
+            color: #4a90e2;
+        }
+
+        .suggestion {
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        #suggestions {
+            border: 1px solid #ddd;
+            background-color: white;
+            margin-top: 5px;
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            max-height: 150px;
+            overflow-y: auto;
+            width: calc(100% - 22px);
+        }
+
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .suggestion-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        #categoryFilters {
+            margin: 20px 0;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>FAQ Search</h1>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Type your question here..." aria-label="Search input">
+        <button id="searchButton">Search</button>
+        <div id="suggestions"></div>
+    </div>
+
+    <div id="categoryFilters">
+        <label><input type="checkbox" value="Admissions" checked> Admissions</label>
+        <label><input type="checkbox" value="Curriculum and Faculty" checked> Curriculum</label>
+        <label><input type="checkbox" value="Career Services" checked> Career Services</label>
+        <label><input type="checkbox" value="Accreditation & Recognition" checked> Accreditation</label>
+        <label><input type="checkbox" value="Tuition fee and Scholarships" checked> Tuition</label>
+    </div>
+
+    <h2>Results:</h2>
+    <div id="results"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.basic.min.js"></script>
+    <script>
+        let faqs = []; // Store the fetched FAQs
+
+        // Fetch FAQs from server when the page loads
+        fetch('http://localhost:3000/api/faqs')
+            .then(response => response.json())
+            .then(data => {
+                faqs = data; // Store FAQs for searching
+            });
+
+        const searchButton = document.getElementById('searchButton');
+        const searchInput = document.getElementById('searchInput');
+        const resultsDiv = document.getElementById('results');
+        const suggestionsDiv = document.getElementById('suggestions');
+
+        searchButton.addEventListener('click', performSearch);
+        searchInput.addEventListener('input', showSuggestions);
+        searchInput.addEventListener('blur', () => suggestionsDiv.style.display = 'none');
+
+        function performSearch() {
+            const searchQuery = searchInput.value.trim();
+            if (!searchQuery) {
+                alert('Please enter a question to search.');
+                return;
+            }
+
+            const selectedCategories = Array.from(document.querySelectorAll('#categoryFilters input:checked')).map(input => input.value);
+            const options = {
+                includeScore: true,
+                keys: ['question', 'answer', 'category'],
+                threshold: 0.3,
+                ignoreLocation: true,
+            };
+
+            const fuse = new Fuse(faqs, options);
+            const results = fuse.search(searchQuery);
+            const filteredResults = results.filter(item => selectedCategories.includes(item.item.category));
+            
+            resultsDiv.innerHTML = ''; // Clear previous results
+
+            if (filteredResults.length === 0) {
+                resultsDiv.innerHTML = '<div class="result">No results found. Please try a different question.</div>';
+                return;
+            }
+
+            filteredResults.forEach(({ item }) => {
+                const div = document.createElement('div');
+                div.className = 'result';
+                div.innerHTML = `<h3>${highlightMatch(item.question, searchQuery)}</h3><p>${highlightMatch(item.answer, searchQuery)}</p><div class="suggestion">Category: ${item.category}</div>`;
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        function highlightMatch(text, query) {
+            const regex = new RegExp(`(${query})`, 'gi');
+            return text.replace(regex, '<strong>$1</strong>');
+        }
+
+        function showSuggestions() {
+            const query = searchInput.value.trim();
+            suggestionsDiv.innerHTML = '';
+            if (query.length === 0) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+
+            const suggestions = faqs.filter(item => item.question.toLowerCase().includes(query.toLowerCase()));
+            suggestions.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.innerText = item.question;
+                div.onclick = () => {
+                    searchInput.value = item.question;
+                    suggestionsDiv.style.display = 'none';
+                    performSearch();
+                };
+                suggestionsDiv.appendChild(div);
+            });
+
+            if (suggestions.length > 0) {
+                suggestionsDiv.style.display = 'block';
+            } else {
+                suggestionsDiv.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
