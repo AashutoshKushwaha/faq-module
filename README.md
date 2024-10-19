@@ -8,4 +8,4 @@ The important features of this are-
 6)Simple installation and setup instructions for developers to get started quickly.
 7)A backend API that handles search queries, making it easy to integrate with other applications or services.
 
-The public file contains index.html the code for frontend deelopment whereas data.js and server.js contains code for backed development as well as the fad.json file to for testcases.
+The public file contains index.html the code for frontend development whereas data.js and server.js contains code for backed development as well as the fad.json file to for testcases.
